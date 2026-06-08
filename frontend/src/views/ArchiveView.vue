@@ -162,10 +162,9 @@ const getDuration = (startedAt: string, endedAt: string, status: string) => {
           <div style="display: flex; gap: 0.5rem;">
             <button 
               v-if="rec.status === 'COMPLETED'"
-              class="btn-icon primary" 
+              class="btn-icon btn-play" 
               title="Смотреть запись"
               @click="openPlayer(rec)"
-              style="background: linear-gradient(135deg, #a855f7 0%, #6366f1 100%);"
             >
               <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                 <path d="M8 5v14l11-7z"/>
@@ -223,5 +222,17 @@ const getDuration = (startedAt: string, endedAt: string, status: string) => {
     max-width: none !important;
     width: 100%;
   }
+}
+.btn-play {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  color: #a855f7 !important;
+  transition: all 0.2s ease;
+}
+.btn-play:hover {
+  background: rgba(168, 85, 247, 0.15) !important;
+  border-color: #a855f7 !important;
+  color: #c084fc !important;
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.2);
 }
 </style>

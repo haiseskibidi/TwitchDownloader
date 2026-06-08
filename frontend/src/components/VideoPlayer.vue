@@ -26,7 +26,32 @@ const hoverTimeText = ref('')
 const hoverPercent = ref(0)
 const showHoverProgress = ref(false)
 
+const hasError = ref(false)
+const errorDetails = ref('')
+
 let controlsTimeout: any = null
+
+const onVideoError = () => {
+  hasError.value = true
+  const error = videoRef.value?.error
+  if (error) {
+    if (error.code === 1) errorDetails.value = 'Загрузка видео прервана пользователем или системой.'
+    else if (error.code === 2) errorDetails.value = 'Ошибка сети: не удалось загрузить поток видео с сервера.'
+    else if (error.code === 3) errorDetails.value = 'Ошибка декодирования: видеофайл поврежден или кодек не поддерживается вашим браузером.'
+    else if (error.code === 4) errorDetails.value = 'Видеофайл не найден на сервере (возможно, он был удален или перенесен rclone).'
+    else errorDetails.value = error.message || 'Произошла ошибка при загрузке видео.'
+  } else {
+    errorDetails.value = 'Не удалось получить доступ к видеопотоку. Проверьте статус бэкенда.'
+  }
+}
+
+const retryLoad = () => {
+  if (!videoRef.value) return
+  hasError.value = false
+  errorDetails.value = ''
+  videoRef.value.load()
+  videoRef.value.play().catch(err => console.error('Play retry error', err))
+}
 
 const formatTime = (seconds: number) => {
   if (isNaN(seconds) || !isFinite(seconds)) return '00:00:00'
@@ -192,6 +217,8 @@ watch(() => props.src, () => {
   isPlaying.value = false
   currentTime.value = 0
   duration.value = 0
+  hasError.value = false
+  errorDetails.value = ''
   resetControlsTimeout()
 })
 </script>
@@ -216,7 +243,17 @@ watch(() => props.src, () => {
         @loadedmetadata="onLoadedMetadata"
         @play="isPlaying = true"
         @pause="isPlaying = false"
+        @error="onVideoError"
       ></video>
+
+      <!-- Error Overlay (Beautiful alert when video fails to load) -->
+      <div v-if="hasError" class="player-error-overlay">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor" class="error-icon">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+        </svg>
+        <p class="error-message">{{ errorDetails }}</p>
+        <button class="btn-retry" @click="retryLoad">Попробовать снова</button>
+      </div>
 
       <!-- Glassmorphic Header (Title + Close Button) -->
       <Transition name="fade">
@@ -687,5 +724,68 @@ watch(() => props.src, () => {
 .scale-fade-leave-to {
   transform: scale(0.5);
   opacity: 0;
+}
+
+/* Error Overlay Styles */
+.player-error-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 15, 20, 0.9);
+  backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+  text-align: center;
+  z-index: 8;
+  color: #fca5a5;
+}
+
+.error-icon {
+  color: #ef4444;
+  margin-bottom: 1.25rem;
+  filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.4));
+  animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+.error-message {
+  font-size: 1rem;
+  font-weight: 500;
+  max-width: 500px;
+  line-height: 1.5;
+  color: #e5e7eb;
+  margin: 0 0 1.5rem 0;
+}
+
+.btn-retry {
+  background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+  border: none;
+  color: #fff;
+  padding: 0.65rem 1.5rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);
+}
+
+.btn-retry:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+}
+
+.btn-retry:active {
+  transform: translateY(0);
 }
 </style>

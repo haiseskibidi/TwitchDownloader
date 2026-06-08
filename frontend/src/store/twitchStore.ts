@@ -51,6 +51,30 @@ export interface TwitchSearchChannel {
   is_live: boolean
 }
 
+function translateError(errorMsg: string): string {
+  if (!errorMsg) return 'Неизвестная ошибка'
+  const msg = errorMsg.toLowerCase()
+  if (msg.includes('invalid username or password')) {
+    return 'Неверное имя пользователя или пароль'
+  }
+  if (msg.includes('username is already taken')) {
+    return 'Это имя пользователя уже занято'
+  }
+  if (msg.includes('username must be at least')) {
+    return 'Имя должно быть не менее 3 символов, а пароль — не менее 6'
+  }
+  if (msg.includes('unauthorized')) {
+    return 'Требуется авторизация. Пожалуйста, войдите.'
+  }
+  if (msg.includes('streamer already added')) {
+    return 'Этот стример уже добавлен в ваш список'
+  }
+  if (msg.includes('twitch channel not found')) {
+    return 'Канал Twitch не найден. Проверьте правильность написания.'
+  }
+  return errorMsg
+}
+
 export const useTwitchStore = defineStore('twitch', {
   state: () => ({
     // Auth State
@@ -176,7 +200,7 @@ export const useTwitchStore = defineStore('twitch', {
           } catch (e) {
             errorMsg = `Ошибка сервера (${res.status}): ${res.statusText || 'Bad Gateway'}`
           }
-          return { success: false, error: errorMsg }
+          return { success: false, error: translateError(errorMsg) }
         }
       } catch (err) {
         console.error('Login error', err)
@@ -211,7 +235,7 @@ export const useTwitchStore = defineStore('twitch', {
           } catch (e) {
             errorMsg = `Ошибка сервера (${res.status}): ${res.statusText || 'Bad Gateway'}`
           }
-          return { success: false, error: errorMsg }
+          return { success: false, error: translateError(errorMsg) }
         }
       } catch (err) {
         console.error('Registration error', err)
@@ -335,11 +359,11 @@ export const useTwitchStore = defineStore('twitch', {
           return { success: true }
         } else {
           const data = await res.json()
-          return { success: false, error: data.error || 'Failed to add streamer' }
+          return { success: false, error: translateError(data.error || 'Failed to add streamer') }
         }
       } catch (err) {
         console.error('Failed to add streamer', err)
-        return { success: false, error: 'Network error occurred' }
+        return { success: false, error: 'Ошибка сети при добавлении стримера' }
       }
     },
 

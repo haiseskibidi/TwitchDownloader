@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    url: "jdbc:sqlite::memory:"
+    driver-class-name: org.sqlite.JDBC
+  jpa:
+    database-platform: org.hibernate.community.dialect.SQLiteDialect
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+app:
+  twitch:
+    client-id: "test-id"
+    client-secret: "test-secret"
+  download:
+    path: "test-downloads"
+    quality: "best"
