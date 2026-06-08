@@ -4,6 +4,7 @@ import com.twitchdownloader.model.Recording;
 import com.twitchdownloader.model.RecordingStatus;
 import com.twitchdownloader.repository.RecordingRepository;
 import com.twitchdownloader.service.RecorderService;
+import com.twitchdownloader.scheduler.TwitchScheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -22,10 +23,12 @@ public class RecordingController {
 
     private final RecordingRepository recordingRepository;
     private final RecorderService recorderService;
+    private final TwitchScheduler twitchScheduler;
 
-    public RecordingController(RecordingRepository recordingRepository, RecorderService recorderService) {
+    public RecordingController(RecordingRepository recordingRepository, RecorderService recorderService, TwitchScheduler twitchScheduler) {
         this.recordingRepository = recordingRepository;
         this.recorderService = recorderService;
+        this.twitchScheduler = twitchScheduler;
     }
 
     @GetMapping
@@ -76,6 +79,36 @@ public class RecordingController {
         boolean stopped = recorderService.stopRecording(recording.getStreamer().getId());
         if (stopped) {
             return ResponseEntity.ok(Map.of("message", "Recording stopped successfully"));
+        } else {
+            return ResponseEntity.internalServerError().body(Map.of("error", "Failed to stop recording process"));
+        }
+    }
+
+    @PostMapping("/{id}/split")
+    public ResponseEntity<?> splitRecording(@PathVariable Long id) {
+        Optional<Recording> recordingOpt = recordingRepository.findById(id);
+        if (recordingOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Recording recording = recordingOpt.get();
+        if (recording.getStatus() != RecordingStatus.ACTIVE) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Recording is not active"));
+        }
+
+        boolean stopped = recorderService.stopRecording(recording.getStreamer().getId());
+        if (stopped) {
+            // Trigger stream check immediately in a virtual thread to restart recording if online
+            Thread.ofVirtual().start(() -> {
+                try {
+                    // Wait 2 seconds for the previous process to finish writing and clean up
+                    java.util.concurrent.TimeUnit.SECONDS.sleep(2);
+                    twitchScheduler.checkStreams();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            return ResponseEntity.ok(Map.of("message", "Recording split triggered successfully"));
         } else {
             return ResponseEntity.internalServerError().body(Map.of("error", "Failed to stop recording process"));
         }

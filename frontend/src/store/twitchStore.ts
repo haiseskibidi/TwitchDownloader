@@ -246,6 +246,20 @@ export const useTwitchStore = defineStore('twitch', {
       return false
     },
 
+    async splitRecording(id: number) {
+      try {
+        const res = await fetch(`/api/recordings/${id}/split`, { method: 'POST' })
+        if (res.ok) {
+          await this.fetchRecordings()
+          await this.fetchStreamers()
+          return true
+        }
+      } catch (err) {
+        console.error('Failed to split recording', err)
+      }
+      return false
+    },
+
     connectWebSocket() {
       if (this.ws) {
         this.ws.close()
