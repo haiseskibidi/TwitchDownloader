@@ -511,8 +511,8 @@ watch(() => props.src, () => {
 .center-play-wrapper:hover .center-play-btn {
   background: rgba(255, 255, 255, 0.25);
   transform: scale(1.1);
-  box-shadow: 0 12px 40px rgba(168, 85, 247, 0.3);
-  border-color: rgba(168, 85, 247, 0.4);
+  box-shadow: 0 12px 40px rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.4);
 }
 
 /* Controls Panel Styling */
