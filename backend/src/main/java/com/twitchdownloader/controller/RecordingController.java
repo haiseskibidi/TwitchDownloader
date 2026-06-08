@@ -7,6 +7,10 @@ import com.twitchdownloader.service.RecorderService;
 import com.twitchdownloader.scheduler.TwitchScheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -112,5 +116,30 @@ public class RecordingController {
         } else {
             return ResponseEntity.internalServerError().body(Map.of("error", "Failed to stop recording process"));
         }
+    }
+
+    @GetMapping("/{id}/download")
+    public ResponseEntity<Resource> downloadRecording(@PathVariable Long id) {
+        Optional<Recording> recordingOpt = recordingRepository.findById(id);
+        if (recordingOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Recording recording = recordingOpt.get();
+        if (recording.getFilePath() == null) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        File file = new File(recording.getFilePath());
+        if (!file.exists()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Resource resource = new FileSystemResource(file);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + file.getName() + "\"")
+                .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(file.length()))
+                .contentType(MediaType.parseMediaType("video/mp4"))
+                .body(resource);
     }
 }
