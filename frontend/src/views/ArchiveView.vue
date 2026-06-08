@@ -51,6 +51,23 @@ const formatDate = (dateString: string) => {
   const d = new Date(dateString)
   return d.toLocaleString()
 }
+
+// Helper: Format duration
+const getDuration = (startedAt: string, endedAt: string) => {
+  if (!startedAt || !endedAt) return '-'
+  const start = new Date(startedAt).getTime()
+  const end = new Date(endedAt).getTime()
+  const diffMs = end - start
+  if (diffMs < 0) return '00:00:00'
+
+  const diffSecs = Math.floor(diffMs / 1000)
+  const hrs = Math.floor(diffSecs / 3600)
+  const mins = Math.floor((diffSecs % 3600) / 60)
+  const secs = diffSecs % 60
+
+  const pad = (n: number) => n.toString().padStart(2, '0')
+  return `${pad(hrs)}:${pad(mins)}:${pad(secs)}`
+}
 </script>
 
 <template>
@@ -91,6 +108,10 @@ const formatDate = (dateString: string) => {
           
           <div class="archive-date">
             {{ formatDate(rec.startedAt) }}
+          </div>
+
+          <div class="archive-duration" title="Длительность записи">
+            {{ getDuration(rec.startedAt, rec.endedAt) }}
           </div>
           
           <div class="archive-size">

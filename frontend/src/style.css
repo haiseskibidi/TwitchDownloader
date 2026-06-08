@@ -543,6 +543,17 @@ input:checked + .slider:before {
   color: #fff;
 }
 
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
 .btn-small {
   padding: 0.25rem 0.5rem;
   font-size: 0.75rem;
@@ -736,10 +747,15 @@ input:checked + .slider:before {
   border-radius: 10px;
   padding: 0.8rem 1.25rem;
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr auto;
+  grid-template-columns: 2fr 1.2fr 0.8fr 0.8fr 1fr auto;
   align-items: center;
   gap: 1rem;
   transition: all 0.15s ease;
+}
+
+.archive-duration {
+  font-size: 0.8rem;
+  color: var(--text-muted);
 }
 
 .archive-item:hover {
