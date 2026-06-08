@@ -132,12 +132,19 @@ if ($authType -eq "1") {
 
 Write-Host "Remote 'vps_server' configured successfully." -ForegroundColor Green
 
-# 5. Create Scheduled Task in Windows
+# 5. Create Scheduled Task in Windows (Run under SYSTEM to make it completely silent/hidden)
 Write-Host ""
 Write-Host "Configuring Windows Scheduled Task 'Twitch Auto Pull'..." -ForegroundColor Yellow
 
+# Locate rclone config file
+$configFilePath = Join-Path $env:APPDATA "rclone\rclone.conf"
+if (-not (Test-Path $configFilePath)) {
+    # Fallback to rclone's detection
+    $configFilePath = (& $rclonePath config file | Select-Object -Last 1).Trim()
+}
+
 $logPath = Join-Path $localPath "rclone_scheduler.log"
-$rcloneArguments = "move vps_server:/opt/TwitchDownloader/downloads/completed `"$localPath`" --delete-empty-src-dirs --log-file `"$logPath`" --log-level INFO"
+$rcloneArguments = "move vps_server:/opt/TwitchDownloader/downloads/completed `"$localPath`" --delete-empty-src-dirs --config `"$configFilePath`" --log-file `"$logPath`" --log-level INFO"
 
 # Remove existing task if any
 Unregister-ScheduledTask -TaskName "Twitch Auto Pull" -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
@@ -147,10 +154,10 @@ $action = New-ScheduledTaskAction -Execute $rclonePath -Argument $rcloneArgument
 $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes $interval)
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
 
-# Register the new task
-Register-ScheduledTask -TaskName "Twitch Auto Pull" -Action $action -Trigger $trigger -Settings $settings | Out-Null
+# Register the new task under SYSTEM account so it runs completely hidden without terminal window popping up
+Register-ScheduledTask -TaskName "Twitch Auto Pull" -User "NT AUTHORITY\SYSTEM" -Action $action -Trigger $trigger -Settings $settings | Out-Null
 
-Write-Host "Scheduled Task registered to run every $interval minutes." -ForegroundColor Green
+Write-Host "Scheduled Task registered to run under SYSTEM account every $interval minutes (100% silent)." -ForegroundColor Green
 
 # 6. Verify and Test Connection
 Write-Host ""
