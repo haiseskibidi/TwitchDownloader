@@ -1,0 +1,27 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: twitch-downloader
+  datasource:
+    url: jdbc:sqlite:db/twitch_downloader.db
+    driver-class-name: org.sqlite.JDBC
+
+  jpa:
+    database-platform: org.hibernate.community.dialect.SQLiteDialect
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+app:
+  twitch:
+    client-id: ""
+    client-secret: ""
+    check-interval-seconds: 60
+  download:
+    path: "downloads"
+    quality: "best"
