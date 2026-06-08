@@ -2,7 +2,7 @@ package com.twitchdownloader.model;
 
 import jakarta.persistence.*;
 import lombok.*;
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Entity
 @Table(name = "recordings")
@@ -33,10 +33,10 @@ public class Recording {
     private String filePath;
 
     @Column(name = "started_at")
-    private LocalDateTime startedAt;
+    private Instant startedAt;
 
     @Column(name = "ended_at")
-    private LocalDateTime endedAt;
+    private Instant endedAt;
 
     @Column(name = "file_size")
     private Long fileSize;

@@ -68,7 +68,7 @@ public class TwitchScheduler {
                 if (activeRecId != null) {
                     recordingRepository.findById(activeRecId).ifPresent(rec -> {
                         if (rec.getStartedAt() != null) {
-                            long minutesActive = java.time.Duration.between(rec.getStartedAt(), java.time.LocalDateTime.now()).toMinutes();
+                            long minutesActive = java.time.Duration.between(rec.getStartedAt(), java.time.Instant.now()).toMinutes();
                             if (minutesActive >= 120) { // 120 minutes = 2 hours
                                 log.info("Recording ID {} for streamer {} has been active for {} minutes. Splitting recording to prevent disk overflow.",
                                         activeRecId, streamer.getTwitchUsername(), minutesActive);

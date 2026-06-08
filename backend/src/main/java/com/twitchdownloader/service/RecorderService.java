@@ -17,6 +17,7 @@ import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
+import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
@@ -101,7 +102,7 @@ public class RecorderService {
             } else {
                 rec.setStatus(RecordingStatus.FAILED);
             }
-            rec.setEndedAt(LocalDateTime.now());
+            rec.setEndedAt(Instant.now());
             recordingRepository.save(rec);
         }
     }
@@ -149,7 +150,7 @@ public class RecorderService {
                 .title(title)
                 .status(RecordingStatus.ACTIVE)
                 .filePath(tempFile.getAbsolutePath())
-                .startedAt(LocalDateTime.now())
+                .startedAt(Instant.now())
                 .build();
         recording = recordingRepository.save(recording);
 
@@ -215,7 +216,7 @@ public class RecorderService {
         } catch (IOException e) {
             log.error("Failed to start streamlink process for streamer {}: {}", streamer.getTwitchUsername(), e.getMessage());
             recording.setStatus(RecordingStatus.FAILED);
-            recording.setEndedAt(LocalDateTime.now());
+            recording.setEndedAt(Instant.now());
             recordingRepository.save(recording);
             activeRecordingIds.remove(streamer.getId());
             activeProcesses.remove(streamer.getId());
@@ -232,7 +233,7 @@ public class RecorderService {
             return;
         }
 
-        recording.setEndedAt(LocalDateTime.now());
+        recording.setEndedAt(Instant.now());
 
         if (tempFile.exists() && tempFile.length() > 0) {
             try {
