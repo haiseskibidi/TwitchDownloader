@@ -23,7 +23,13 @@ public class LogWebSocketHandler extends TextWebSocketHandler {
     private final List<WebSocketSession> activeSessions = new CopyOnWriteArrayList<>();
 
     @Override
-    public void afterConnectionEstablished(WebSocketSession session) {
+    public void afterConnectionEstablished(WebSocketSession session) throws Exception {
+        Map<String, Object> attributes = session.getAttributes();
+        if (attributes.get("userId") == null) {
+            log.warn("WebSocket connection rejected: unauthorized session {}", session.getId());
+            session.close(CloseStatus.POLICY_VIOLATION);
+            return;
+        }
         activeSessions.add(session);
         log.info("WebSocket connection established: {}", session.getId());
     }

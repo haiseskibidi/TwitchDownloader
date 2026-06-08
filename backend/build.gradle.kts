@@ -32,6 +32,9 @@ dependencies {
     implementation("org.xerial:sqlite-jdbc:3.46.0.0")
     implementation("org.hibernate.orm:hibernate-community-dialects:6.5.2.Final")
 
+    // BCrypt for password hashing
+    implementation("org.mindrot:jbcrypt:0.4")
+
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
     

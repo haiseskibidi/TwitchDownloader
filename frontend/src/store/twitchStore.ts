@@ -53,6 +53,12 @@ export interface TwitchSearchChannel {
 
 export const useTwitchStore = defineStore('twitch', {
   state: () => ({
+    // Auth State
+    user: null as { id: number, username: string, role: string } | null,
+    isAuthenticated: false,
+    checkingAuth: true,
+    hasSystemUsers: true,
+
     streamers: [] as Streamer[],
     recordings: [] as Recording[],
     stats: {
@@ -85,9 +91,143 @@ export const useTwitchStore = defineStore('twitch', {
   }),
 
   actions: {
+    // API Request wrapper that handles 401 Unauthorized globally
+    async apiFetch(url: string, options?: RequestInit) {
+      const res = await fetch(url, options)
+      if (res.status === 401) {
+        this.isAuthenticated = false
+        this.user = null
+        if (this.ws) {
+          this.ws.close()
+          this.ws = null
+        }
+        if (this.wsReconnectTimeout) {
+          clearTimeout(this.wsReconnectTimeout)
+          this.wsReconnectTimeout = null
+        }
+        this.wsConnected = false
+        throw new Error('Unauthorized')
+      }
+      return res
+    },
+
+    // Authentication Actions
+    async checkAuth() {
+      this.checkingAuth = true
+      try {
+        const res = await fetch('/api/auth/me')
+        if (res.ok) {
+          this.user = await res.json()
+          this.isAuthenticated = true
+          if (!this.wsConnected && !this.ws) {
+            this.connectWebSocket()
+          }
+        } else {
+          this.user = null
+          this.isAuthenticated = false
+        }
+      } catch (err) {
+        console.error('Failed to check auth', err)
+        this.user = null
+        this.isAuthenticated = false
+      } finally {
+        this.checkingAuth = false
+      }
+    },
+
+    async checkSystemUsers() {
+      try {
+        const res = await fetch('/api/auth/has-users')
+        if (res.ok) {
+          const data = await res.json()
+          this.hasSystemUsers = data.hasUsers
+        }
+      } catch (err) {
+        console.error('Failed to check system users', err)
+      }
+    },
+
+    async login(username: string, password: string) {
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        })
+        if (res.ok) {
+          this.user = await res.json()
+          this.isAuthenticated = true
+          this.connectWebSocket()
+          
+          // Fetch operational data
+          this.fetchStreamers()
+          this.fetchRecordings()
+          this.fetchStats()
+          this.fetchSettings()
+          return { success: true }
+        } else {
+          const data = await res.json()
+          return { success: false, error: data.error || 'Неверное имя пользователя или пароль' }
+        }
+      } catch (err) {
+        console.error('Login error', err)
+        return { success: false, error: 'Ошибка сети при попытке входа' }
+      }
+    },
+
+    async register(username: string, password: string) {
+      try {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        })
+        if (res.ok) {
+          this.user = await res.json()
+          this.isAuthenticated = true
+          this.hasSystemUsers = true
+          this.connectWebSocket()
+
+          // Fetch operational data
+          this.fetchStreamers()
+          this.fetchRecordings()
+          this.fetchStats()
+          this.fetchSettings()
+          return { success: true }
+        } else {
+          const data = await res.json()
+          return { success: false, error: data.error || 'Ошибка при регистрации' }
+        }
+      } catch (err) {
+        console.error('Registration error', err)
+        return { success: false, error: 'Ошибка сети при попытке регистрации' }
+      }
+    },
+
+    async logout() {
+      try {
+        await fetch('/api/auth/logout', { method: 'POST' })
+      } catch (err) {
+        console.error('Logout error', err)
+      } finally {
+        this.user = null
+        this.isAuthenticated = false
+        if (this.ws) {
+          this.ws.close()
+          this.ws = null
+        }
+        if (this.wsReconnectTimeout) {
+          clearTimeout(this.wsReconnectTimeout)
+          this.wsReconnectTimeout = null
+        }
+        this.wsConnected = false
+      }
+    },
+
+    // Operational Actions
     async fetchStreamers() {
       try {
-        const res = await fetch('/api/streamers')
+        const res = await this.apiFetch('/api/streamers')
         if (res.ok) {
           this.streamers = await res.json()
         }
@@ -98,7 +238,7 @@ export const useTwitchStore = defineStore('twitch', {
 
     async fetchRecordings() {
       try {
-        const res = await fetch('/api/recordings')
+        const res = await this.apiFetch('/api/recordings')
         if (res.ok) {
           this.recordings = await res.json()
         }
@@ -109,7 +249,7 @@ export const useTwitchStore = defineStore('twitch', {
 
     async fetchStats() {
       try {
-        const res = await fetch('/api/system/stats')
+        const res = await this.apiFetch('/api/system/stats')
         if (res.ok) {
           this.stats = await res.json()
         }
@@ -120,7 +260,7 @@ export const useTwitchStore = defineStore('twitch', {
 
     async fetchSettings() {
       try {
-        const res = await fetch('/api/settings')
+        const res = await this.apiFetch('/api/settings')
         if (res.ok) {
           this.settings = await res.json()
         }
@@ -131,7 +271,7 @@ export const useTwitchStore = defineStore('twitch', {
 
     async saveSettings(settings: Settings) {
       try {
-        const res = await fetch('/api/settings', {
+        const res = await this.apiFetch('/api/settings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(settings)
@@ -153,7 +293,7 @@ export const useTwitchStore = defineStore('twitch', {
         return
       }
       try {
-        const res = await fetch(`/api/streamers/search?query=${encodeURIComponent(query)}`)
+        const res = await this.apiFetch(`/api/streamers/search?query=${encodeURIComponent(query)}`)
         if (res.ok) {
           this.searchChannelResults = await res.json()
         }
@@ -170,7 +310,7 @@ export const useTwitchStore = defineStore('twitch', {
           bodyPayload.twitchId = details.twitchId
           bodyPayload.profileImageUrl = details.profileImageUrl
         }
-        const res = await fetch('/api/streamers', {
+        const res = await this.apiFetch('/api/streamers', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(bodyPayload)
@@ -190,7 +330,7 @@ export const useTwitchStore = defineStore('twitch', {
 
     async deleteStreamer(id: number) {
       try {
-        const res = await fetch(`/api/streamers/${id}`, { method: 'DELETE' })
+        const res = await this.apiFetch(`/api/streamers/${id}`, { method: 'DELETE' })
         if (res.ok) {
           await this.fetchStreamers()
           return true
@@ -203,7 +343,7 @@ export const useTwitchStore = defineStore('twitch', {
 
     async toggleStreamer(id: number, isActive: boolean) {
       try {
-        const res = await fetch(`/api/streamers/${id}`, {
+        const res = await this.apiFetch(`/api/streamers/${id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ isActive })
@@ -220,7 +360,7 @@ export const useTwitchStore = defineStore('twitch', {
 
     async deleteRecording(id: number) {
       try {
-        const res = await fetch(`/api/recordings/${id}`, { method: 'DELETE' })
+        const res = await this.apiFetch(`/api/recordings/${id}`, { method: 'DELETE' })
         if (res.ok) {
           await this.fetchRecordings()
           await this.fetchStats()
@@ -234,7 +374,7 @@ export const useTwitchStore = defineStore('twitch', {
 
     async stopRecording(id: number) {
       try {
-        const res = await fetch(`/api/recordings/${id}/stop`, { method: 'POST' })
+        const res = await this.apiFetch(`/api/recordings/${id}/stop`, { method: 'POST' })
         if (res.ok) {
           await this.fetchRecordings()
           await this.fetchStreamers()
@@ -248,7 +388,7 @@ export const useTwitchStore = defineStore('twitch', {
 
     async splitRecording(id: number) {
       try {
-        const res = await fetch(`/api/recordings/${id}/split`, { method: 'POST' })
+        const res = await this.apiFetch(`/api/recordings/${id}/split`, { method: 'POST' })
         if (res.ok) {
           await this.fetchRecordings()
           await this.fetchStreamers()
@@ -261,6 +401,10 @@ export const useTwitchStore = defineStore('twitch', {
     },
 
     connectWebSocket() {
+      if (!this.isAuthenticated) {
+        logInfo('Skipping WebSocket connection: not authenticated')
+        return
+      }
       if (this.ws) {
         this.ws.close()
       }
@@ -321,13 +465,16 @@ export const useTwitchStore = defineStore('twitch', {
       }
 
       socket.onclose = () => {
-        logInfo('WebSocket disconnected. Reconnecting in 5s...')
+        logInfo('WebSocket disconnected.')
         this.wsConnected = false
         this.ws = null
         
-        this.wsReconnectTimeout = setTimeout(() => {
-          this.connectWebSocket()
-        }, 5000)
+        if (this.isAuthenticated) {
+          logInfo('Reconnecting in 5s...')
+          this.wsReconnectTimeout = setTimeout(() => {
+            this.connectWebSocket()
+          }, 5000)
+        }
       }
 
       socket.onerror = (err) => {
