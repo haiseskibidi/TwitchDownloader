@@ -82,9 +82,22 @@ public class RecorderService {
         for (Recording rec : activeRecordings) {
             log.warn("Found dead active recording ID {} for streamer {}", rec.getId(), rec.getStreamer().getTwitchUsername());
             File file = rec.getFilePath() != null ? new File(rec.getFilePath()) : null;
-            if (file != null && file.exists()) {
+            if (file != null && file.exists() && file.length() > 0) {
+                // Move file from recording/ to completed/ so rclone can pick it up
+                String rootDownloadPath = settingService.getDownloadPath();
+                File completedDir = new File(rootDownloadPath + "/completed");
+                if (!completedDir.exists()) completedDir.mkdirs();
+                File finalFile = new File(completedDir, file.getName());
+                try {
+                    Files.move(file.toPath(), finalFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    rec.setFilePath(finalFile.getAbsolutePath());
+                    log.info("Moved orphaned recording file to completed: {}", finalFile.getAbsolutePath());
+                } catch (IOException e) {
+                    log.error("Failed to move orphaned file {}: {}", file.getAbsolutePath(), e.getMessage());
+                    // Keep original path as fallback
+                }
                 rec.setStatus(RecordingStatus.COMPLETED);
-                rec.setFileSize(file.length());
+                rec.setFileSize(finalFile.exists() ? finalFile.length() : file.length());
             } else {
                 rec.setStatus(RecordingStatus.FAILED);
             }
