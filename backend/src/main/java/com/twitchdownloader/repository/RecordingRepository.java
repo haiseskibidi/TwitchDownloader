@@ -13,4 +13,5 @@ public interface RecordingRepository extends JpaRepository<Recording, Long> {
     List<Recording> findByStatus(RecordingStatus status);
     List<Recording> findByStreamerOrderByStartedAtDesc(Streamer streamer);
     List<Recording> findByOrderByStartedAtDesc();
+    List<Recording> findByStreamerInOrderByStartedAtDesc(List<Streamer> streamers);
 }

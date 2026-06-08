@@ -3,11 +3,16 @@ package com.twitchdownloader.controller;
 import com.twitchdownloader.dto.TwitchUser;
 import com.twitchdownloader.dto.TwitchSearchChannel;
 import com.twitchdownloader.dto.TwitchStream;
-
 import com.twitchdownloader.model.Streamer;
+import com.twitchdownloader.model.User;
+import com.twitchdownloader.model.UserStreamer;
 import com.twitchdownloader.repository.StreamerRepository;
+import com.twitchdownloader.repository.UserRepository;
+import com.twitchdownloader.repository.UserStreamerRepository;
 import com.twitchdownloader.service.RecorderService;
 import com.twitchdownloader.service.TwitchClientService;
+import jakarta.servlet.http.HttpSession;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,19 +28,31 @@ public class StreamerController {
     private final StreamerRepository streamerRepository;
     private final TwitchClientService twitchClientService;
     private final RecorderService recorderService;
+    private final UserStreamerRepository userStreamerRepository;
+    private final UserRepository userRepository;
 
     public StreamerController(StreamerRepository streamerRepository,
                               TwitchClientService twitchClientService,
-                              RecorderService recorderService) {
+                              RecorderService recorderService,
+                              UserStreamerRepository userStreamerRepository,
+                              UserRepository userRepository) {
         this.streamerRepository = streamerRepository;
         this.twitchClientService = twitchClientService;
         this.recorderService = recorderService;
+        this.userStreamerRepository = userStreamerRepository;
+        this.userRepository = userRepository;
     }
 
     @GetMapping
-    public List<Map<String, Object>> getAllStreamers() {
-        List<Streamer> streamers = streamerRepository.findAll();
-        return streamers.stream().map(s -> {
+    public ResponseEntity<?> getAllStreamers(HttpSession session) {
+        Long userId = (Long) session.getAttribute("userId");
+        if (userId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Unauthorized"));
+        }
+
+        List<UserStreamer> userStreamers = userStreamerRepository.findByUserId(userId);
+        List<Map<String, Object>> result = userStreamers.stream().map(us -> {
+            Streamer s = us.getStreamer();
             String avatar = s.getProfileImageUrl();
             String displayName = s.getDisplayName();
             String twitchId = s.getTwitchId();
@@ -60,109 +77,179 @@ public class StreamerController {
             map.put("displayName", displayName != null ? displayName : s.getDisplayName());
             map.put("twitchId", twitchId);
             map.put("profileImageUrl", avatar);
-            map.put("isActive", s.isActive());
+            map.put("isActive", us.isActive());
             map.put("addedAt", s.getAddedAt());
-
             map.put("isRecording", recorderService.isRecording(s.getId()));
             return map;
         }).toList();
+
+        return ResponseEntity.ok(result);
     }
 
     @PostMapping
-    public ResponseEntity<?> addStreamer(@RequestBody Map<String, String> body) {
+    public ResponseEntity<?> addStreamer(HttpSession session, @RequestBody Map<String, String> body) {
+        Long userId = (Long) session.getAttribute("userId");
+        if (userId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Unauthorized"));
+        }
+
+        Optional<User> userOpt = userRepository.findById(userId);
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "User not found"));
+        }
+        User user = userOpt.get();
+
         String username = body.get("username");
         if (username == null || username.trim().isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Username is required"));
         }
 
         String cleanedUsername = username.trim().toLowerCase();
-        Optional<Streamer> existing = streamerRepository.findByTwitchUsernameIgnoreCase(cleanedUsername);
-        if (existing.isPresent()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Streamer already added"));
+        
+        // Find or create global streamer
+        Streamer streamer;
+        Optional<Streamer> existingStreamer = streamerRepository.findByTwitchUsernameIgnoreCase(cleanedUsername);
+        if (existingStreamer.isPresent()) {
+            streamer = existingStreamer.get();
+            // Check if user is already tracking this streamer
+            Optional<UserStreamer> existingLink = userStreamerRepository.findByUserAndStreamer(user, streamer);
+            if (existingLink.isPresent()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Streamer already added"));
+            }
+        } else {
+            // Fill streamer details
+            String displayName = body.get("displayName");
+            String twitchId = body.get("twitchId");
+            String profileImageUrl = body.get("profileImageUrl");
+
+            if (displayName != null && !displayName.trim().isEmpty()) {
+                streamer = Streamer.builder()
+                        .twitchUsername(cleanedUsername)
+                        .displayName(displayName)
+                        .twitchId(twitchId)
+                        .profileImageUrl(profileImageUrl)
+                        .isActive(true)
+                        .build();
+            } else if (!twitchClientService.isConfigured()) {
+                streamer = Streamer.builder()
+                        .twitchUsername(cleanedUsername)
+                        .displayName(username)
+                        .isActive(true)
+                        .build();
+            } else {
+                Optional<TwitchUser> twitchUserOpt = twitchClientService.getUserInfo(cleanedUsername);
+                if (twitchUserOpt.isEmpty()) {
+                    return ResponseEntity.badRequest().body(Map.of("error", "Twitch channel not found."));
+                }
+                TwitchUser twitchUser = twitchUserOpt.get();
+                streamer = Streamer.builder()
+                        .twitchUsername(twitchUser.login())
+                        .displayName(twitchUser.displayName())
+                        .twitchId(twitchUser.id())
+                        .profileImageUrl(twitchUser.profileImageUrl())
+                        .isActive(true)
+                        .build();
+            }
+            streamer = streamerRepository.save(streamer);
         }
 
-        // Check if pre-filled details are passed from autocompletion
-        String displayName = body.get("displayName");
-        String twitchId = body.get("twitchId");
-        String profileImageUrl = body.get("profileImageUrl");
-
-        if (displayName != null && !displayName.trim().isEmpty()) {
-            Streamer streamer = Streamer.builder()
-                    .twitchUsername(cleanedUsername)
-                    .displayName(displayName)
-                    .twitchId(twitchId)
-                    .profileImageUrl(profileImageUrl)
-                    .isActive(true)
-                    .build();
-            streamerRepository.save(streamer);
-            tryStartRecordingIfLive(streamer);
-            return ResponseEntity.ok(streamer);
-        }
-
-        if (!twitchClientService.isConfigured()) {
-            Streamer streamer = Streamer.builder()
-                    .twitchUsername(cleanedUsername)
-                    .displayName(username)
-                    .isActive(true)
-                    .build();
-            streamerRepository.save(streamer);
-            tryStartRecordingIfLive(streamer);
-            return ResponseEntity.ok(streamer);
-        }
-
-        Optional<TwitchUser> twitchUserOpt = twitchClientService.getUserInfo(cleanedUsername);
-        if (twitchUserOpt.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Twitch channel not found. Make sure Twitch credentials are correct."));
-        }
-
-        TwitchUser twitchUser = twitchUserOpt.get();
-        Streamer streamer = Streamer.builder()
-                .twitchUsername(twitchUser.login())
-                .displayName(twitchUser.displayName())
-                .twitchId(twitchUser.id())
-                .profileImageUrl(twitchUser.profileImageUrl())
+        // Link user and streamer
+        UserStreamer userStreamer = UserStreamer.builder()
+                .user(user)
+                .streamer(streamer)
                 .isActive(true)
                 .build();
+        userStreamerRepository.save(userStreamer);
 
-        streamerRepository.save(streamer);
         tryStartRecordingIfLive(streamer);
-        return ResponseEntity.ok(streamer);
 
+        Map<String, Object> map = new HashMap<>();
+        map.put("id", streamer.getId());
+        map.put("twitchUsername", streamer.getTwitchUsername());
+        map.put("displayName", streamer.getDisplayName());
+        map.put("twitchId", streamer.getTwitchId());
+        map.put("profileImageUrl", streamer.getProfileImageUrl());
+        map.put("isActive", true);
+        map.put("addedAt", streamer.getAddedAt());
+        map.put("isRecording", recorderService.isRecording(streamer.getId()));
+
+        return ResponseEntity.ok(map);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteStreamer(@PathVariable Long id) {
-        Optional<Streamer> streamerOpt = streamerRepository.findById(id);
-        if (streamerOpt.isEmpty()) {
+    public ResponseEntity<?> deleteStreamer(HttpSession session, @PathVariable Long id) {
+        Long userId = (Long) session.getAttribute("userId");
+        if (userId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Unauthorized"));
+        }
+
+        Optional<UserStreamer> linkOpt = userStreamerRepository.findByUserIdAndStreamerId(userId, id);
+        if (linkOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
 
-        Streamer streamer = streamerOpt.get();
-        if (recorderService.isRecording(streamer.getId())) {
+        UserStreamer link = linkOpt.get();
+        Streamer streamer = link.getStreamer();
+
+        userStreamerRepository.delete(link);
+
+        // If no other active users are tracking this streamer, stop recording
+        boolean isStillTracked = userStreamerRepository.findByStreamer(streamer).stream()
+                .anyMatch(UserStreamer::isActive);
+        if (!isStillTracked && recorderService.isRecording(streamer.getId())) {
             recorderService.stopRecording(streamer.getId());
         }
 
-        streamerRepository.delete(streamer);
         return ResponseEntity.ok(Map.of("message", "Streamer deleted successfully"));
     }
 
     @PatchMapping("/{id}")
-    public ResponseEntity<?> toggleStreamer(@PathVariable Long id, @RequestBody Map<String, Boolean> body) {
-        Optional<Streamer> streamerOpt = streamerRepository.findById(id);
-        if (streamerOpt.isEmpty()) {
+    public ResponseEntity<?> toggleStreamer(HttpSession session, @PathVariable Long id, @RequestBody Map<String, Boolean> body) {
+        Long userId = (Long) session.getAttribute("userId");
+        if (userId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Unauthorized"));
+        }
+
+        Optional<UserStreamer> linkOpt = userStreamerRepository.findByUserIdAndStreamerId(userId, id);
+        if (linkOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
 
-        Streamer streamer = streamerOpt.get();
+        UserStreamer link = linkOpt.get();
         Boolean active = body.get("isActive");
         if (active != null) {
-            streamer.setActive(active);
-            if (!active && recorderService.isRecording(streamer.getId())) {
-                recorderService.stopRecording(streamer.getId());
+            link.setActive(active);
+            userStreamerRepository.save(link);
+
+            Streamer streamer = link.getStreamer();
+            boolean isStillTracked = userStreamerRepository.findByStreamer(streamer).stream()
+                    .anyMatch(UserStreamer::isActive);
+            
+            if (active) {
+                // If it goes active and is not recording, check if live to start recording immediately
+                if (!recorderService.isRecording(streamer.getId())) {
+                    tryStartRecordingIfLive(streamer);
+                }
+            } else {
+                // If disabled and no other user tracks it, stop recording
+                if (!isStillTracked && recorderService.isRecording(streamer.getId())) {
+                    recorderService.stopRecording(streamer.getId());
+                }
             }
-            streamerRepository.save(streamer);
         }
-        return ResponseEntity.ok(streamer);
+
+        Streamer s = link.getStreamer();
+        Map<String, Object> map = new HashMap<>();
+        map.put("id", s.getId());
+        map.put("twitchUsername", s.getTwitchUsername());
+        map.put("displayName", s.getDisplayName());
+        map.put("twitchId", s.getTwitchId());
+        map.put("profileImageUrl", s.getProfileImageUrl());
+        map.put("isActive", link.isActive());
+        map.put("addedAt", s.getAddedAt());
+        map.put("isRecording", recorderService.isRecording(s.getId()));
+
+        return ResponseEntity.ok(map);
     }
 
     @GetMapping("/search")
@@ -170,10 +257,6 @@ public class StreamerController {
         return ResponseEntity.ok(twitchClientService.searchChannels(query));
     }
 
-    /**
-     * If the streamer is currently live, immediately start recording
-     * instead of waiting for the next scheduler tick (up to 60s).
-     */
     private void tryStartRecordingIfLive(Streamer streamer) {
         try {
             List<TwitchStream> streams = twitchClientService.getStreamsInfo(
@@ -183,7 +266,6 @@ public class StreamerController {
                 recorderService.startRecording(streamer, stream.id(), stream.title());
             }
         } catch (Exception e) {
-            // Non-critical: the scheduler will pick it up on the next tick
             org.slf4j.LoggerFactory.getLogger(StreamerController.class)
                     .warn("Could not immediately start recording for {}: {}",
                             streamer.getTwitchUsername(), e.getMessage());

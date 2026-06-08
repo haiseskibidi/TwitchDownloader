@@ -4,6 +4,7 @@ import com.twitchdownloader.dto.TwitchStream;
 import com.twitchdownloader.model.Streamer;
 import com.twitchdownloader.repository.StreamerRepository;
 import com.twitchdownloader.repository.RecordingRepository;
+import com.twitchdownloader.repository.UserStreamerRepository;
 import com.twitchdownloader.service.RecorderService;
 import com.twitchdownloader.service.TwitchClientService;
 import org.slf4j.Logger;
@@ -23,22 +24,25 @@ public class TwitchScheduler {
     private final TwitchClientService twitchClientService;
     private final RecorderService recorderService;
     private final RecordingRepository recordingRepository;
+    private final UserStreamerRepository userStreamerRepository;
 
     public TwitchScheduler(StreamerRepository streamerRepository,
                            TwitchClientService twitchClientService,
                            RecorderService recorderService,
-                           RecordingRepository recordingRepository) {
+                           RecordingRepository recordingRepository,
+                           UserStreamerRepository userStreamerRepository) {
         this.streamerRepository = streamerRepository;
         this.twitchClientService = twitchClientService;
         this.recorderService = recorderService;
         this.recordingRepository = recordingRepository;
+        this.userStreamerRepository = userStreamerRepository;
     }
 
     @Scheduled(fixedDelay = 60000) // Runs every 60 seconds
     public void checkStreams() {
 
 
-        List<Streamer> activeStreamers = streamerRepository.findByIsActiveTrue();
+        List<Streamer> activeStreamers = userStreamerRepository.findActiveStreamers();
         if (activeStreamers.isEmpty()) {
             return;
         }

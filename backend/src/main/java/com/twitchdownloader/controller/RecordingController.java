@@ -2,9 +2,12 @@ package com.twitchdownloader.controller;
 
 import com.twitchdownloader.model.Recording;
 import com.twitchdownloader.model.RecordingStatus;
+import com.twitchdownloader.model.Streamer;
 import com.twitchdownloader.repository.RecordingRepository;
+import com.twitchdownloader.repository.UserStreamerRepository;
 import com.twitchdownloader.service.RecorderService;
 import com.twitchdownloader.scheduler.TwitchScheduler;
+import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.FileSystemResource;
@@ -28,16 +31,29 @@ public class RecordingController {
     private final RecordingRepository recordingRepository;
     private final RecorderService recorderService;
     private final TwitchScheduler twitchScheduler;
+    private final UserStreamerRepository userStreamerRepository;
 
-    public RecordingController(RecordingRepository recordingRepository, RecorderService recorderService, TwitchScheduler twitchScheduler) {
+    public RecordingController(RecordingRepository recordingRepository,
+                               RecorderService recorderService,
+                               TwitchScheduler twitchScheduler,
+                               UserStreamerRepository userStreamerRepository) {
         this.recordingRepository = recordingRepository;
         this.recorderService = recorderService;
         this.twitchScheduler = twitchScheduler;
+        this.userStreamerRepository = userStreamerRepository;
     }
 
     @GetMapping
-    public List<Recording> getAllRecordings() {
-        return recordingRepository.findByOrderByStartedAtDesc();
+    public List<Recording> getAllRecordings(HttpSession session) {
+        Long userId = (Long) session.getAttribute("userId");
+        if (userId == null) {
+            return List.of();
+        }
+        List<Streamer> streamers = userStreamerRepository.findStreamersByUserId(userId);
+        if (streamers.isEmpty()) {
+            return List.of();
+        }
+        return recordingRepository.findByStreamerInOrderByStartedAtDesc(streamers);
     }
 
     @DeleteMapping("/{id}")
