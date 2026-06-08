@@ -17,7 +17,7 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = "*", allowCredentials = "true")
+@CrossOrigin(originPatterns = "*", allowCredentials = "true")
 public class AuthController {
     private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
