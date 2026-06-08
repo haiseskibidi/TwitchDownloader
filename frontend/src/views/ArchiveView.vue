@@ -1,9 +1,23 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useTwitchStore } from '../store/twitchStore'
 import CustomSelect from '../components/CustomSelect.vue'
 
 const store = useTwitchStore()
+
+// State for active ticking timer
+const now = ref(Date.now())
+let timer: any = null
+
+onMounted(() => {
+  timer = setInterval(() => {
+    now.value = Date.now()
+  }, 1000)
+})
+
+onUnmounted(() => {
+  if (timer) clearInterval(timer)
+})
 
 // Archive filters
 const searchFilter = ref('')
@@ -53,10 +67,10 @@ const formatDate = (dateString: string) => {
 }
 
 // Helper: Format duration
-const getDuration = (startedAt: string, endedAt: string) => {
-  if (!startedAt || !endedAt) return '-'
+const getDuration = (startedAt: string, endedAt: string, status: string) => {
+  if (!startedAt) return '-'
   const start = new Date(startedAt).getTime()
-  const end = new Date(endedAt).getTime()
+  const end = (status === 'ACTIVE' || !endedAt) ? now.value : new Date(endedAt).getTime()
   const diffMs = end - start
   if (diffMs < 0) return '00:00:00'
 
@@ -111,7 +125,7 @@ const getDuration = (startedAt: string, endedAt: string) => {
           </div>
 
           <div class="archive-duration" title="Длительность записи">
-            {{ getDuration(rec.startedAt, rec.endedAt) }}
+            {{ getDuration(rec.startedAt, rec.endedAt, rec.status) }}
           </div>
           
           <div class="archive-size">
