@@ -12,12 +12,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.ResourceRegion;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpRange;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -160,7 +164,7 @@ public class RecordingController {
     }
 
     @GetMapping("/{id}/stream")
-    public ResponseEntity<Resource> streamRecording(@PathVariable Long id) {
+    public ResponseEntity<ResourceRegion> streamRecording(@PathVariable Long id, @RequestHeader HttpHeaders headers) {
         Optional<Recording> recordingOpt = recordingRepository.findById(id);
         if (recordingOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
@@ -177,8 +181,26 @@ public class RecordingController {
         }
 
         Resource resource = new FileSystemResource(file);
-        return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType("video/mp4"))
-                .body(resource);
+        try {
+            long contentLength = resource.contentLength();
+            List<HttpRange> ranges = headers.getRange();
+            ResourceRegion region;
+            if (!ranges.isEmpty()) {
+                HttpRange range = ranges.get(0);
+                long start = range.getRangeStart(contentLength);
+                long end = range.getRangeEnd(contentLength);
+                long rangeLength = Math.min(1024 * 1024 * 2L, end - start + 1); // 2MB chunks
+                region = new ResourceRegion(resource, start, rangeLength);
+            } else {
+                long rangeLength = Math.min(1024 * 1024 * 2L, contentLength);
+                region = new ResourceRegion(resource, 0, rangeLength);
+            }
+            return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
+                    .contentType(MediaType.parseMediaType("video/mp4"))
+                    .body(region);
+        } catch (IOException e) {
+            log.error("Failed to read file size or stream file for recording {}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 }
