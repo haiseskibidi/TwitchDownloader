@@ -76,6 +76,38 @@ public class RecordingRemuxService {
         }
     }
 
+    public static boolean lacksFastStart(File file) {
+        if (!file.exists() || file.length() < 100) {
+            return false;
+        }
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
+            byte[] header = new byte[8];
+            raf.readFully(header);
+            // Verify it is an MP4 (starts with ftyp at offset 4)
+            if (!(header[4] == 0x66 && header[5] == 0x74 && header[6] == 0x79 && header[7] == 0x70)) {
+                return false; // Not a valid MP4 file
+            }
+            // Read ftyp size (first 4 bytes as big-endian int)
+            int ftypSize = ((header[0] & 0xFF) << 24) |
+                           ((header[1] & 0xFF) << 16) |
+                           ((header[2] & 0xFF) << 8)  |
+                           (header[3] & 0xFF);
+            if (ftypSize <= 0 || ftypSize > file.length() - 8) {
+                return true; // Corrupted or unusual structure
+            }
+            raf.seek(ftypSize);
+            byte[] nextBoxHeader = new byte[8];
+            raf.readFully(nextBoxHeader);
+            String boxType = new String(nextBoxHeader, 4, 4);
+            if ("mdat".equals(boxType)) {
+                return true; // moov box is at the end!
+            }
+            return false;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
     public boolean remuxMpegTsToMp4(File inputFile, File outputFile) {
         if (!isFfmpegAvailable) {
             log.warn("Cannot remux: FFmpeg is not available.");
@@ -89,6 +121,7 @@ public class RecordingRemuxService {
                     "-i", inputFile.getAbsolutePath(),
                     "-c", "copy",
                     "-map", "0",
+                    "-movflags", "+faststart",
                     outputFile.getAbsolutePath()
             );
             ProcessBuilder pb = new ProcessBuilder(command);
@@ -132,14 +165,14 @@ public class RecordingRemuxService {
             return;
         }
         Thread.ofVirtual().start(() -> {
-            log.info("Scanning for existing MPEG-TS recordings to remux to Web-compatible MP4...");
+            log.info("Scanning for existing MPEG-TS or non-web-optimized MP4 recordings to remux...");
             List<Recording> completed = recordingRepository.findByStatus(RecordingStatus.COMPLETED);
             int convertedCount = 0;
             for (Recording rec : completed) {
                 if (rec.getFilePath() != null) {
                     File file = new File(rec.getFilePath());
-                    if (file.exists() && isMpegTs(file)) {
-                        log.info("Found MPEG-TS recording to convert: {} (ID: {})", file.getName(), rec.getId());
+                    if (file.exists() && (isMpegTs(file) || lacksFastStart(file))) {
+                        log.info("Found recording to optimize/convert: {} (ID: {})", file.getName(), rec.getId());
                         File tempTsFile = new File(file.getParentFile(), "temp_" + System.currentTimeMillis() + "_" + file.getName() + ".ts");
                         try {
                             // Rename original to temp ts file
