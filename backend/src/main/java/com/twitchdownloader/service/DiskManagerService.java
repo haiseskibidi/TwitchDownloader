@@ -3,6 +3,7 @@ package com.twitchdownloader.service;
 import com.twitchdownloader.model.Recording;
 import com.twitchdownloader.model.RecordingStatus;
 import com.twitchdownloader.repository.RecordingRepository;
+import com.twitchdownloader.websocket.LogWebSocketHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -19,10 +20,12 @@ public class DiskManagerService {
 
     private final RecordingRepository recordingRepository;
     private final SettingService settingService;
+    private final LogWebSocketHandler webSocketHandler;
 
-    public DiskManagerService(RecordingRepository recordingRepository, SettingService settingService) {
+    public DiskManagerService(RecordingRepository recordingRepository, SettingService settingService, LogWebSocketHandler webSocketHandler) {
         this.recordingRepository = recordingRepository;
         this.settingService = settingService;
+        this.webSocketHandler = webSocketHandler;
     }
 
     @Scheduled(fixedDelay = 120000) // Runs every 2 minutes
@@ -47,6 +50,7 @@ public class DiskManagerService {
                             rec.getId(), rec.getTitle());
                     rec.setStatus(RecordingStatus.MOVED_TO_LOCAL);
                     recordingRepository.save(rec);
+                    webSocketHandler.broadcastSystemEvent("RECORDING_UPDATED", rec.getId().toString());
                 }
             }
         }
@@ -81,6 +85,7 @@ public class DiskManagerService {
                                     file.getName(), size / (1024 * 1024));
                             rec.setStatus(RecordingStatus.DELETED);
                             recordingRepository.save(rec);
+                            webSocketHandler.broadcastSystemEvent("RECORDING_UPDATED", rec.getId().toString());
 
                             // Re-evaluate free space
                             freePercent = getFreeSpacePercentage(root);

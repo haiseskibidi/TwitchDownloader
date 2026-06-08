@@ -18,9 +18,11 @@ onMounted(async () => {
   // Connect Websocket
   store.connectWebSocket()
 
-  // Poll disk stats every 30 seconds
+  // Poll stats, recordings, and streamers every 30 seconds as a fallback
   setInterval(() => {
     store.fetchStats()
+    store.fetchRecordings()
+    store.fetchStreamers()
   }, 30000)
 })
 </script>
