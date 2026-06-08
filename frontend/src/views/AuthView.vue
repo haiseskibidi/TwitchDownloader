@@ -60,7 +60,7 @@ const handleSubmit = async () => {
     if (isLoginMode.value) {
       const result = await store.login(username.value, password.value)
       if (!result.success) {
-        errorMessage.value = result.error
+        errorMessage.value = result.error || 'Неверное имя пользователя или пароль'
         triggerShake()
       }
     } else {
@@ -72,7 +72,7 @@ const handleSubmit = async () => {
       }
       const result = await store.register(username.value, password.value)
       if (!result.success) {
-        errorMessage.value = result.error
+        errorMessage.value = result.error || 'Ошибка при регистрации'
         triggerShake()
       }
     }
@@ -424,12 +424,12 @@ const handleSubmit = async () => {
 
 /* Shake Animation */
 .shake-anim {
-  animation: shake 0.4s ease-in-out;
+  animation: shake 0.3s ease-in-out;
 }
 
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
-  20%, 60% { transform: translateX(-6px); }
-  40%, 80% { transform: translateX(6px); }
+  25%, 75% { transform: translateX(-3px); }
+  50% { transform: translateX(3px); }
 }
 </style>

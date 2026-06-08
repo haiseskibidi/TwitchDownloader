@@ -139,8 +139,11 @@ export const useTwitchStore = defineStore('twitch', {
       try {
         const res = await fetch('/api/auth/has-users')
         if (res.ok) {
-          const data = await res.json()
-          this.hasSystemUsers = data.hasUsers
+          const contentType = res.headers.get('content-type')
+          if (contentType && contentType.includes('application/json')) {
+            const data = await res.json()
+            this.hasSystemUsers = data.hasUsers
+          }
         }
       } catch (err) {
         console.error('Failed to check system users', err)
@@ -166,8 +169,14 @@ export const useTwitchStore = defineStore('twitch', {
           this.fetchSettings()
           return { success: true }
         } else {
-          const data = await res.json()
-          return { success: false, error: data.error || 'Неверное имя пользователя или пароль' }
+          let errorMsg = 'Неверное имя пользователя или пароль'
+          try {
+            const data = await res.json()
+            errorMsg = data.error || errorMsg
+          } catch (e) {
+            errorMsg = `Ошибка сервера (${res.status}): ${res.statusText || 'Bad Gateway'}`
+          }
+          return { success: false, error: errorMsg }
         }
       } catch (err) {
         console.error('Login error', err)
@@ -195,8 +204,14 @@ export const useTwitchStore = defineStore('twitch', {
           this.fetchSettings()
           return { success: true }
         } else {
-          const data = await res.json()
-          return { success: false, error: data.error || 'Ошибка при регистрации' }
+          let errorMsg = 'Ошибка при регистрации'
+          try {
+            const data = await res.json()
+            errorMsg = data.error || errorMsg
+          } catch (e) {
+            errorMsg = `Ошибка сервера (${res.status}): ${res.statusText || 'Bad Gateway'}`
+          }
+          return { success: false, error: errorMsg }
         }
       } catch (err) {
         console.error('Registration error', err)
