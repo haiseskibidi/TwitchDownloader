@@ -32,6 +32,7 @@ public class RecorderService {
     private final RecordingRepository recordingRepository;
     private final SettingService settingService;
     private final LogWebSocketHandler webSocketHandler;
+    private final RecordingRemuxService recordingRemuxService;
 
     // Map of active processes keyed by Streamer ID
     private final Map<Long, Process> activeProcesses = new ConcurrentHashMap<>();
@@ -40,10 +41,12 @@ public class RecorderService {
 
     public RecorderService(RecordingRepository recordingRepository,
                            SettingService settingService,
-                           LogWebSocketHandler webSocketHandler) {
+                           LogWebSocketHandler webSocketHandler,
+                           RecordingRemuxService recordingRemuxService) {
         this.recordingRepository = recordingRepository;
         this.settingService = settingService;
         this.webSocketHandler = webSocketHandler;
+        this.recordingRemuxService = recordingRemuxService;
     }
 
     @PostConstruct
@@ -237,13 +240,25 @@ public class RecorderService {
 
         if (tempFile.exists() && tempFile.length() > 0) {
             try {
-                log.info("Moving recorded file to completed directory: {}", finalFile.getAbsolutePath());
-                Files.move(tempFile.toPath(), finalFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                boolean remuxed = false;
+                if (recordingRemuxService.isFfmpegAvailable()) {
+                    log.info("Remuxing recorded file to completed directory using FFmpeg: {}", finalFile.getAbsolutePath());
+                    remuxed = recordingRemuxService.remuxMpegTsToMp4(tempFile, finalFile);
+                    if (remuxed) {
+                        tempFile.delete();
+                    }
+                }
+
+                if (!remuxed) {
+                    log.info("Moving recorded file (no remux) to completed directory: {}", finalFile.getAbsolutePath());
+                    Files.move(tempFile.toPath(), finalFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                }
+
                 recording.setStatus(RecordingStatus.COMPLETED);
                 recording.setFilePath(finalFile.getAbsolutePath());
                 recording.setFileSize(finalFile.length());
             } catch (IOException e) {
-                log.error("Failed to move file for recording {}: {}", recordingId, e.getMessage());
+                log.error("Failed to move/remux file for recording {}: {}", recordingId, e.getMessage());
                 // Fallback: keep temporary path but mark as completed
                 recording.setStatus(RecordingStatus.COMPLETED);
                 recording.setFilePath(tempFile.getAbsolutePath());
