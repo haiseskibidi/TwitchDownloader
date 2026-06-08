@@ -77,6 +77,12 @@ public class TwitchScheduler {
                         }
                     });
                 }
+                // If we just stopped a recording for splitting, skip this tick.
+                // The next tick will detect the streamer is online + not recording and start part 2.
+                if (!recorderService.isRecording(streamer.getId()) && onlineStreams.containsKey(usernameLower)) {
+                    log.info("Split in progress for {}. Skipping this tick to let the process finalize.", streamer.getTwitchUsername());
+                    continue;
+                }
             }
 
             if (onlineStreams.containsKey(usernameLower)) {

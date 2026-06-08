@@ -13,6 +13,7 @@ const statusOptions = [
   { value: '', label: 'Все статусы' },
   { value: 'COMPLETED', label: 'Готов на сервере' },
   { value: 'MOVED_TO_LOCAL', label: 'Скачан на ПК (rclone)' },
+  { value: 'DELETED', label: 'Удалён автоочисткой' },
   { value: 'FAILED', label: 'Ошибка записи' }
 ]
 
@@ -84,8 +85,8 @@ const formatDate = (dateString: string) => {
       <div v-else class="archive-list">
         <div v-for="rec in filteredRecordings" :key="rec.id" class="archive-item">
           <div class="archive-stream-info">
-            <span class="archive-title" :title="rec.title">{{ rec.title }}</span>
-            <span class="archive-streamer">@{{ rec.streamer.displayName }}</span>
+            <a :href="'https://twitch.tv/' + rec.streamer.twitchUsername" target="_blank" rel="noopener noreferrer" class="archive-title streamer-link" :title="rec.title">{{ rec.title }}</a>
+            <a :href="'https://twitch.tv/' + rec.streamer.twitchUsername" target="_blank" rel="noopener noreferrer" class="archive-streamer streamer-link">@{{ rec.streamer.displayName }}</a>
           </div>
           
           <div class="archive-date">
@@ -102,6 +103,7 @@ const formatDate = (dateString: string) => {
               {{ 
                 rec.status === 'COMPLETED' ? 'На сервере' :
                 rec.status === 'MOVED_TO_LOCAL' ? 'Перенесен на ПК' :
+                rec.status === 'DELETED' ? 'Удалён' :
                 rec.status === 'FAILED' ? 'Сбой' : 'Запись'
               }}
             </span>

@@ -20,7 +20,7 @@ export interface Recording {
   }
   twitchStreamId: string
   title: string
-  status: 'ACTIVE' | 'COMPLETED' | 'MOVED_TO_LOCAL' | 'FAILED'
+  status: 'ACTIVE' | 'COMPLETED' | 'MOVED_TO_LOCAL' | 'DELETED' | 'FAILED'
   filePath: string
   startedAt: string
   endedAt: string

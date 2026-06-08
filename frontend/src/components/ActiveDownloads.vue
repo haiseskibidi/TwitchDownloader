@@ -28,11 +28,11 @@ const handleViewLogs = (username: string) => {
     <div class="active-downloads">
       <div v-for="r in store.recordings.filter(rec => rec.status === 'ACTIVE')" :key="r.id" class="download-item">
         <div class="download-item-header">
-          <span class="download-title" :title="r.title">{{ r.title }}</span>
+          <a :href="'https://twitch.tv/' + r.streamer.twitchUsername" target="_blank" rel="noopener noreferrer" class="download-title streamer-link" :title="r.title">{{ r.title }}</a>
           <span class="status-badge recording">В процессе</span>
         </div>
         <div class="download-meta">
-          <span>Стример: <strong>{{ r.streamer.displayName }}</strong></span>
+          <span>Стример: <a :href="'https://twitch.tv/' + r.streamer.twitchUsername" target="_blank" rel="noopener noreferrer" class="streamer-link"><strong>{{ r.streamer.displayName }}</strong></a></span>
           <span>Начало: {{ formatDate(r.startedAt) }}</span>
         </div>
         <div class="download-actions">

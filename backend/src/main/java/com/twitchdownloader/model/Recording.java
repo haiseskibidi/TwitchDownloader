@@ -40,9 +40,4 @@ public class Recording {
 
     @Column(name = "file_size")
     private Long fileSize;
-
-    @PrePersist
-    protected void onCreate() {
-        startedAt = LocalDateTime.now();
-    }
 }

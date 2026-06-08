@@ -2,6 +2,7 @@ package com.twitchdownloader.controller;
 
 import com.twitchdownloader.dto.TwitchUser;
 import com.twitchdownloader.dto.TwitchSearchChannel;
+import com.twitchdownloader.dto.TwitchStream;
 
 import com.twitchdownloader.model.Streamer;
 import com.twitchdownloader.repository.StreamerRepository;
@@ -94,6 +95,7 @@ public class StreamerController {
                     .isActive(true)
                     .build();
             streamerRepository.save(streamer);
+            tryStartRecordingIfLive(streamer);
             return ResponseEntity.ok(streamer);
         }
 
@@ -104,6 +106,7 @@ public class StreamerController {
                     .isActive(true)
                     .build();
             streamerRepository.save(streamer);
+            tryStartRecordingIfLive(streamer);
             return ResponseEntity.ok(streamer);
         }
 
@@ -122,6 +125,7 @@ public class StreamerController {
                 .build();
 
         streamerRepository.save(streamer);
+        tryStartRecordingIfLive(streamer);
         return ResponseEntity.ok(streamer);
 
     }
@@ -164,5 +168,25 @@ public class StreamerController {
     @GetMapping("/search")
     public ResponseEntity<?> searchTwitchChannels(@RequestParam String query) {
         return ResponseEntity.ok(twitchClientService.searchChannels(query));
+    }
+
+    /**
+     * If the streamer is currently live, immediately start recording
+     * instead of waiting for the next scheduler tick (up to 60s).
+     */
+    private void tryStartRecordingIfLive(Streamer streamer) {
+        try {
+            List<TwitchStream> streams = twitchClientService.getStreamsInfo(
+                    List.of(streamer.getTwitchUsername()));
+            if (!streams.isEmpty()) {
+                TwitchStream stream = streams.get(0);
+                recorderService.startRecording(streamer, stream.id(), stream.title());
+            }
+        } catch (Exception e) {
+            // Non-critical: the scheduler will pick it up on the next tick
+            org.slf4j.LoggerFactory.getLogger(StreamerController.class)
+                    .warn("Could not immediately start recording for {}: {}",
+                            streamer.getTwitchUsername(), e.getMessage());
+        }
     }
 }

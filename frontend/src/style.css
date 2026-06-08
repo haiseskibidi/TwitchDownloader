@@ -799,10 +799,12 @@ input:checked + .slider:before {
 .status-text.completed { color: var(--accent-green); }
 .status-text.moved_to_local { color: var(--accent-blue); }
 .status-text.failed { color: var(--accent-red); }
+.status-text.deleted { color: #f59e0b; }
 
 .status-dot.completed { background: var(--accent-green); }
 .status-dot.moved_to_local { background: var(--accent-blue); }
 .status-dot.failed { background: var(--accent-red); }
+.status-dot.deleted { background: #f59e0b; }
 
 @media (max-width: 768px) {
   .archive-item {

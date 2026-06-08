@@ -66,11 +66,8 @@ public class LogWebSocketHandler extends TextWebSocketHandler {
         TextMessage textMessage = new TextMessage(formattedMessage);
 
         for (WebSocketSession session : activeSessions) {
-            // Send system events to all connected clients or those subscribed to "SYSTEM"
-            String subscription = sessionSubscriptions.get(session);
-            if (subscription == null || "system".equals(subscription)) {
-                sendMessageSafe(session, textMessage);
-            }
+            // Broadcast system events to ALL connected clients
+            sendMessageSafe(session, textMessage);
         }
     }
 

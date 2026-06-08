@@ -79,7 +79,7 @@ public class DiskManagerService {
                         if (file.delete()) {
                             log.info("Auto-cleanup deleted file: {} ({} MB) to free space.",
                                     file.getName(), size / (1024 * 1024));
-                            rec.setStatus(RecordingStatus.MOVED_TO_LOCAL);
+                            rec.setStatus(RecordingStatus.DELETED);
                             recordingRepository.save(rec);
 
                             // Re-evaluate free space
