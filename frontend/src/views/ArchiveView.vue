@@ -2,8 +2,23 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useTwitchStore } from '../store/twitchStore'
 import CustomSelect from '../components/CustomSelect.vue'
+import VideoPlayer from '../components/VideoPlayer.vue'
 
 const store = useTwitchStore()
+
+// State for embedded video player
+const activePlayerRecording = ref<any>(null)
+const showPlayer = ref(false)
+
+const openPlayer = (rec: any) => {
+  activePlayerRecording.value = rec
+  showPlayer.value = true
+}
+
+const closePlayer = () => {
+  showPlayer.value = false
+  activePlayerRecording.value = null
+}
 
 // State for active ticking timer
 const now = ref(Date.now())
@@ -145,6 +160,17 @@ const getDuration = (startedAt: string, endedAt: string, status: string) => {
           </div>
 
           <div style="display: flex; gap: 0.5rem;">
+            <button 
+              v-if="rec.status === 'COMPLETED'"
+              class="btn-icon primary" 
+              title="Смотреть запись"
+              @click="openPlayer(rec)"
+              style="background: linear-gradient(135deg, #a855f7 0%, #6366f1 100%);"
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                <path d="M8 5v14l11-7z"/>
+              </svg>
+            </button>
             <a 
               v-if="rec.status === 'COMPLETED'"
               :href="'/api/recordings/' + rec.id + '/download'"
@@ -169,6 +195,15 @@ const getDuration = (startedAt: string, endedAt: string, status: string) => {
         </div>
       </div>
     </section>
+
+    <!-- Embedded Custom Video Player -->
+    <VideoPlayer
+      v-if="showPlayer && activePlayerRecording"
+      :src="'/api/recordings/' + activePlayerRecording.id + '/stream'"
+      :title="activePlayerRecording.title"
+      :streamerName="activePlayerRecording.streamer.displayName"
+      @close="closePlayer"
+    />
   </main>
 </template>
 

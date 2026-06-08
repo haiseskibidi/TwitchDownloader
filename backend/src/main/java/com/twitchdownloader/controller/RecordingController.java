@@ -158,4 +158,27 @@ public class RecordingController {
                 .contentType(MediaType.parseMediaType("video/mp4"))
                 .body(resource);
     }
+
+    @GetMapping("/{id}/stream")
+    public ResponseEntity<Resource> streamRecording(@PathVariable Long id) {
+        Optional<Recording> recordingOpt = recordingRepository.findById(id);
+        if (recordingOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Recording recording = recordingOpt.get();
+        if (recording.getFilePath() == null) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        File file = new File(recording.getFilePath());
+        if (!file.exists()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Resource resource = new FileSystemResource(file);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("video/mp4"))
+                .body(resource);
+    }
 }
