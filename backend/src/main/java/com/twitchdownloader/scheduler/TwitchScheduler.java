@@ -3,6 +3,7 @@ package com.twitchdownloader.scheduler;
 import com.twitchdownloader.dto.TwitchStream;
 import com.twitchdownloader.model.Streamer;
 import com.twitchdownloader.repository.StreamerRepository;
+import com.twitchdownloader.repository.RecordingRepository;
 import com.twitchdownloader.service.RecorderService;
 import com.twitchdownloader.service.TwitchClientService;
 import org.slf4j.Logger;
@@ -21,13 +22,16 @@ public class TwitchScheduler {
     private final StreamerRepository streamerRepository;
     private final TwitchClientService twitchClientService;
     private final RecorderService recorderService;
+    private final RecordingRepository recordingRepository;
 
     public TwitchScheduler(StreamerRepository streamerRepository,
                            TwitchClientService twitchClientService,
-                           RecorderService recorderService) {
+                           RecorderService recorderService,
+                           RecordingRepository recordingRepository) {
         this.streamerRepository = streamerRepository;
         this.twitchClientService = twitchClientService;
         this.recorderService = recorderService;
+        this.recordingRepository = recordingRepository;
     }
 
     @Scheduled(fixedDelay = 60000) // Runs every 60 seconds
@@ -58,6 +62,22 @@ public class TwitchScheduler {
         for (Streamer streamer : activeStreamers) {
             String usernameLower = streamer.getTwitchUsername().toLowerCase();
             boolean currentlyRecording = recorderService.isRecording(streamer.getId());
+
+            if (currentlyRecording) {
+                Long activeRecId = recorderService.getActiveRecordingId(streamer.getId());
+                if (activeRecId != null) {
+                    recordingRepository.findById(activeRecId).ifPresent(rec -> {
+                        if (rec.getStartedAt() != null) {
+                            long minutesActive = java.time.Duration.between(rec.getStartedAt(), java.time.LocalDateTime.now()).toMinutes();
+                            if (minutesActive >= 120) { // 120 minutes = 2 hours
+                                log.info("Recording ID {} for streamer {} has been active for {} minutes. Splitting recording to prevent disk overflow.",
+                                        activeRecId, streamer.getTwitchUsername(), minutesActive);
+                                recorderService.stopRecording(streamer.getId());
+                            }
+                        }
+                    });
+                }
+            }
 
             if (onlineStreams.containsKey(usernameLower)) {
                 TwitchStream streamInfo = onlineStreams.get(usernameLower);

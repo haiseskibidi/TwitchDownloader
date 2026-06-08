@@ -268,4 +268,8 @@ public class RecorderService {
     public Map<Long, Process> getActiveProcesses() {
         return activeProcesses;
     }
+
+    public Long getActiveRecordingId(Long streamerId) {
+        return activeRecordingIds.get(streamerId);
+    }
 }
